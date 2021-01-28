@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30804.86
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SyncronousChatClient", "SyncronousChatClient.csproj", "{6AFBEECB-BC54-465E-987C-006B2764C419}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SyncronousChatServer", "..\SyncronousChatServer\SyncronousChatServer.csproj", "{3299A11C-71DA-4691-A784-E346499D57E1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6AFBEECB-BC54-465E-987C-006B2764C419}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6AFBEECB-BC54-465E-987C-006B2764C419}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6AFBEECB-BC54-465E-987C-006B2764C419}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6AFBEECB-BC54-465E-987C-006B2764C419}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3299A11C-71DA-4691-A784-E346499D57E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3299A11C-71DA-4691-A784-E346499D57E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3299A11C-71DA-4691-A784-E346499D57E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3299A11C-71DA-4691-A784-E346499D57E1}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2A7E0443-8E1F-458F-9D57-2CDFB3B4151D}
+	EndGlobalSection
+EndGlobal
