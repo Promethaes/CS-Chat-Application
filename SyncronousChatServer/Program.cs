@@ -37,6 +37,11 @@ namespace SyncronousChatServer
                     //store and print the message, decode the bytes to ASCII
                     string message = Encoding.ASCII.GetString(recBuffer, 0, length);
                     Console.WriteLine(message);
+
+                    message = Console.ReadLine();
+
+                    recBuffer = Encoding.ASCII.GetBytes(message);
+                    connection.Send(recBuffer);
                 }
                 catch (SocketException e)
                 {
@@ -48,13 +53,13 @@ namespace SyncronousChatServer
                     Console.WriteLine("ObjectDisposedException {0}", e);
                     break;
                 }
-                catch (ArgumentException e)
+                catch (ArgumentNullException e)
                 {
-                    Console.WriteLine("ArgumentException {0}", e);
+                    Console.WriteLine("ArgumentNullException {0}", e);
                     break;
                 }
 
-
+                
 
             }
             //Shutdown and close sockets/connection

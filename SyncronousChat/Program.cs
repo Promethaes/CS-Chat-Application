@@ -29,6 +29,12 @@ namespace SyncronousChat
                 try
                 {
                     clientSocket.Send(sendBuf);
+
+                    byte[] recBuffer = new byte[1024];
+                    int length = clientSocket.Receive(recBuffer);
+                    string message2 = Encoding.ASCII.GetString(recBuffer, 0, length);
+                    Console.WriteLine(message2);
+
                 }
                 catch (SocketException e)
                 {
