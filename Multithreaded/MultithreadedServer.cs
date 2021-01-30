@@ -12,11 +12,14 @@ namespace Multithreaded
         public const int BufferSize = 1024;
         public byte[] buffer = new byte[BufferSize];
         public string finalString = "";
+        public int index = -1;
     }
 
     class Server
     {
         Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+
+        List<StateObject> states = new List<StateObject>();
 
         void AcceptCallback(IAsyncResult ar)
         {
@@ -25,27 +28,49 @@ namespace Multithreaded
 
             acceptWaitHandle.Set();
 
+            Console.WriteLine("Connection Established with {0}", handler.RemoteEndPoint.ToString());
+
             StateObject state = new StateObject();
+            states.Add(state);
+            state.index = states.Count - 1;
             state.workSocket = handler;
             handler.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0, new AsyncCallback(ReadCallback), state);
         }
 
         void ReadCallback(IAsyncResult ar)
         {
-            StateObject state = (StateObject)ar.AsyncState;
-            Socket handler = state.workSocket;
-
-            int length = handler.EndReceive(ar);
-
-            if (length > 0)
+            try
             {
-                state.finalString += Encoding.ASCII.GetString(state.buffer, 0, length);
-                handler.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0, new AsyncCallback(ReadCallback), state);
-            }
-            else
-            {
+
+                StateObject state = (StateObject)ar.AsyncState;
+                Socket handler = state.workSocket;
+
+                int length = handler.EndReceive(ar);
+
+                state.finalString = Encoding.ASCII.GetString(state.buffer, 0, length);
                 Console.WriteLine(state.finalString);
+
+                handler.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0, new AsyncCallback(ReadCallback), state);
+
+                for (int i = 0; i < states.Count; i++)
+                {
+                    if (i == state.index)
+                        continue;
+                    handler.Send(state.buffer);
+                }
+                
             }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
+
+        }
+
+        void SendCallback(IAsyncResult ar)
+        {
+            Socket handler = (Socket)ar.AsyncState;
+            handler.EndSend(ar);
         }
 
         EventWaitHandle acceptWaitHandle = new EventWaitHandle(true, EventResetMode.ManualReset);
@@ -54,8 +79,7 @@ namespace Multithreaded
         public Server()
         {
             IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
-            IPAddress ipAddress = ipHostInfo.AddressList[0];
-            Console.WriteLine(ipAddress);
+            IPAddress ipAddress = ipHostInfo.AddressList[4];
             IPEndPoint endPoint = new IPEndPoint(ipAddress, 5000);
 
             serverSocket.Bind(endPoint);
@@ -69,7 +93,6 @@ namespace Multithreaded
             while (true)
             {
                 acceptWaitHandle.Reset();
-                Console.Write("Waiting for a connection...");
                 serverSocket.BeginAccept(new AsyncCallback(AcceptCallback), serverSocket);
                 acceptWaitHandle.WaitOne();
             }
@@ -179,6 +202,7 @@ namespace Multithreaded
         static void Main(string[] args)
         {
             Server server = new Server();
+            Console.WriteLine("Server Started and Waiting For Connections...");
             server.StartServer();
 
         }
