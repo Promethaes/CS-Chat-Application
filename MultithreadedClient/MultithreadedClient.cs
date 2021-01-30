@@ -117,7 +117,7 @@ namespace MultithreadedClient
         {
             Client client = new Client();
             Thread recThread = new Thread(client.Receive);
-            client.Send(Console.ReadLine());
+            client.Send("JOINED");
             recThread.Start();
             while (true)
             {
