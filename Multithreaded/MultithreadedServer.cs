@@ -82,8 +82,13 @@ namespace Multithreaded
         EventWaitHandle connectWaitHandle = new EventWaitHandle(true, EventResetMode.ManualReset);
         EventWaitHandle sendDone = new EventWaitHandle(true, EventResetMode.ManualReset);
         EventWaitHandle receiveDone = new EventWaitHandle(true, EventResetMode.ManualReset);
-        public Client(IPEndPoint endPoint)
+        public Client()
         {
+            IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
+            IPAddress ipAddress = IPAddress.Parse("192.168.0.46");
+            IPEndPoint endPoint = new IPEndPoint(ipAddress, 5000);
+
+
             clientSocket.BeginConnect(endPoint, new AsyncCallback(ConnectionCallback), clientSocket);
 
             connectWaitHandle.WaitOne();
@@ -95,9 +100,8 @@ namespace Multithreaded
             {
                 Socket client = (Socket)ar.AsyncState;
 
-                client.EndAccept(ar);
 
-                Console.Write("Socket Connected to {0}", client.RemoteEndPoint.ToString());
+                Console.WriteLine("Socket Connected to {0}", client.RemoteEndPoint.ToString());
 
                 connectWaitHandle.Set();
             }
@@ -109,6 +113,7 @@ namespace Multithreaded
 
         public void Send(string message)
         {
+            message = clientSocket.LocalEndPoint.ToString() + " Says: " + message;
             byte[] sendBuffer = Encoding.ASCII.GetBytes(message);
 
             clientSocket.BeginSend(sendBuffer, 0, sendBuffer.Length, SocketFlags.None, new AsyncCallback(SendCallback), clientSocket);
@@ -123,6 +128,7 @@ namespace Multithreaded
                 int length = client.EndSend(ar);
 
                 sendDone.Set();
+
             }
             catch (Exception e)
             {
@@ -149,23 +155,16 @@ namespace Multithreaded
         {
             try
             {
-
                 StateObject state = (StateObject)ar.AsyncState;
                 Socket client = state.workSocket;
 
                 int length = client.EndReceive(ar);
 
-                if (length > 0)
-                {
-                    state.finalString += Encoding.ASCII.GetString(state.buffer, 0, length);
+                state.finalString = Encoding.ASCII.GetString(state.buffer, 0, length);
+                Console.WriteLine(state.finalString);
 
-                    client.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0, new AsyncCallback(RecieveCallback), state);
-                }
-                else
-                {
-                    receiveDone.Set();
-                    Console.WriteLine(state.finalString);
-                }
+                client.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0, new AsyncCallback(RecieveCallback), state);
+                receiveDone.Set();
             }
             catch (Exception e)
             {
@@ -178,9 +177,15 @@ namespace Multithreaded
     {
         static void Main(string[] args)
         {
-            Server server = new Server();
-            server.StartServer();
+            Client client = new Client();
+            Thread recThread = new Thread(client.Receive);
+            client.Send(Console.ReadLine());
+            recThread.Start();
+            while (true)
+            {
+                client.Send(Console.ReadLine());
 
+            }
         }
     }
 }
