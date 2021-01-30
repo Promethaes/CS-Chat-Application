@@ -52,11 +52,14 @@ namespace Multithreaded
 
                 handler.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0, new AsyncCallback(ReadCallback), state);
 
+                byte[] buffer = new byte[1024];
+                buffer = Encoding.ASCII.GetBytes(state.finalString);
+
                 for (int i = 0; i < states.Count; i++)
                 {
                     if (i == state.index)
                         continue;
-                    handler.Send(state.buffer);
+                    states[i].workSocket.Send(buffer);
                 }
 
             }
