@@ -30,10 +30,14 @@ namespace Multithreaded
 
             Console.WriteLine("Connection Established with {0}", handler.RemoteEndPoint.ToString());
 
+
             StateObject state = new StateObject();
             states.Add(state);
             state.index = states.Count - 1;
             state.workSocket = handler;
+
+            handler.Send(Encoding.ASCII.GetBytes("cli" + " " + state.index.ToString()));
+
             handler.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0, new AsyncCallback(ReadCallback), state);
         }
 

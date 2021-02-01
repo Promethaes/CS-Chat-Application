@@ -15,7 +15,7 @@ namespace MultithreadedClient
     }
     class Client
     {
-        Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        public Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         EventWaitHandle connectWaitHandle = new EventWaitHandle(true, EventResetMode.ManualReset);
         EventWaitHandle sendDone = new EventWaitHandle(true, EventResetMode.ManualReset);
         EventWaitHandle receiveDone = new EventWaitHandle(true, EventResetMode.ManualReset);
@@ -50,7 +50,6 @@ namespace MultithreadedClient
 
         public void Send(string message)
         {
-            message = clientSocket.LocalEndPoint.ToString() + " Says: " + message;
             byte[] sendBuffer = Encoding.ASCII.GetBytes(message);
 
             clientSocket.BeginSend(sendBuffer, 0, sendBuffer.Length, SocketFlags.None, new AsyncCallback(SendCallback), clientSocket);
@@ -117,10 +116,10 @@ namespace MultithreadedClient
         {
             Client client = new Client();
             Thread recThread = new Thread(client.Receive);
-            client.Send(Console.ReadLine());
-            recThread.Start();
             while (true)
             {
+                if (client.clientSocket.Connected && recThread.ThreadState == ThreadState.Unstarted)
+                    recThread.Start();
                 client.Send(Console.ReadLine());
             }
         }
