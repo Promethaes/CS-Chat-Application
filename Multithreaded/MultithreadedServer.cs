@@ -82,7 +82,15 @@ namespace Multithreaded
         public Server()
         {
             IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
-            IPAddress ipAddress = ipHostInfo.AddressList[4];
+
+            var hostAddr = IPAddress.Parse("192.168.0.1");
+            foreach (var addr in ipHostInfo.AddressList)
+            {
+                if (addr.ToString().Contains("192"))
+                    hostAddr = addr;
+            }
+
+            IPAddress ipAddress = hostAddr;
             IPEndPoint endPoint = new IPEndPoint(ipAddress, 5000);
 
             serverSocket.Bind(endPoint);
