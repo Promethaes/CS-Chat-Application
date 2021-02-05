@@ -26,18 +26,18 @@ namespace Multithreaded
 
         void ReadCallback(IAsyncResult ar)
         {
-                readWaitHandle.Set();
+            readWaitHandle.Set();
             try
             {
 
                 StateObject state = (StateObject)ar.AsyncState;
 
-                int length = serverSocket.EndReceiveFrom(ar,ref state.remoteClient);
+                int length = serverSocket.EndReceiveFrom(ar, ref state.remoteClient);
 
                 state.finalString = Encoding.ASCII.GetString(state.buffer, 0, length);
                 Console.WriteLine(state.finalString);
 
-                serverSocket.BeginReceiveFrom(state.buffer, 0, StateObject.BufferSize, 0,ref state.remoteClient, new AsyncCallback(ReadCallback), state);
+                serverSocket.BeginReceiveFrom(state.buffer, 0, StateObject.BufferSize, 0, ref state.remoteClient, new AsyncCallback(ReadCallback), state);
 
                 byte[] buffer = new byte[1024];
                 buffer = Encoding.ASCII.GetBytes(state.finalString);
@@ -46,7 +46,7 @@ namespace Multithreaded
                 {
                     if (i == state.index)
                         continue;
-                    serverSocket.SendTo(buffer,states[i].remoteClient);
+                    serverSocket.SendTo(buffer, states[i].remoteClient);
                 }
 
             }
@@ -69,7 +69,7 @@ namespace Multithreaded
                     hostAddr = addr;
             }
 
-            IPAddress ipAddress = IPAddress.Parse("127.0.0.1");
+            IPAddress ipAddress = hostAddr;
             IPEndPoint endPoint = new IPEndPoint(ipAddress, 5000);
 
             serverSocket.Bind(endPoint);
@@ -90,7 +90,15 @@ namespace Multithreaded
                 state.index = states.Count - 1;
                 state.remoteClient = remoteClient;
 
-                serverSocket.BeginReceiveFrom(buffer, 0, buffer.Length, SocketFlags.None,ref remoteClient,new AsyncCallback(ReadCallback),state);
+                try
+                {
+                    serverSocket.BeginReceiveFrom(buffer, 0, buffer.Length, SocketFlags.None, ref remoteClient, new AsyncCallback(ReadCallback), state);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
+
                 serverWaitHandle.WaitOne();
             }
         }
