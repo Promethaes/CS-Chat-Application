@@ -37,6 +37,9 @@ namespace Multithreaded
                 state.finalString = Encoding.ASCII.GetString(state.buffer, 0, length);
                 Console.WriteLine(state.finalString);
 
+                byte[] temp = new byte[256];
+                temp = Encoding.ASCII.GetBytes("clin " + (states.Count - 1).ToString());
+                serverSocket.SendTo(temp, state.remoteClient);
                 serverSocket.BeginReceiveFrom(state.buffer, 0, StateObject.BufferSize, 0, ref state.remoteClient, new AsyncCallback(ReadCallback), state);
 
                 byte[] buffer = new byte[1024];
