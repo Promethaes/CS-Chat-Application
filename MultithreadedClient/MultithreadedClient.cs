@@ -34,7 +34,7 @@ namespace MultithreadedClient
         {
             byte[] sendBuffer = Encoding.ASCII.GetBytes(message);
 
-            clientSocket.BeginSendTo(sendBuffer, 0, sendBuffer.Length, SocketFlags.None,endPoint, new AsyncCallback(SendCallback), clientSocket);
+            clientSocket.BeginSendTo(sendBuffer, 0, sendBuffer.Length, SocketFlags.None, endPoint, new AsyncCallback(SendCallback), clientSocket);
         }
 
         void SendCallback(IAsyncResult ar)
@@ -60,8 +60,9 @@ namespace MultithreadedClient
             {
                 StateObject state = new StateObject();
                 state.remoteClient = (EndPoint)endPoint;
-
-                clientSocket.BeginReceiveFrom(state.buffer, 0, StateObject.BufferSize, SocketFlags.None,ref state.remoteClient, new AsyncCallback(RecieveCallback), state);
+                EndPoint temp = new IPEndPoint(IPAddress.Any, 0);
+                clientSocket.Bind(temp);
+                clientSocket.BeginReceiveFrom(state.buffer, 0, StateObject.BufferSize, SocketFlags.None, ref state.remoteClient, new AsyncCallback(RecieveCallback), state);
             }
             catch (Exception e)
             {
@@ -75,7 +76,7 @@ namespace MultithreadedClient
             {
                 StateObject state = (StateObject)ar.AsyncState;
 
-                int length = clientSocket.EndReceiveFrom(ar,ref state.remoteClient);
+                int length = clientSocket.EndReceiveFrom(ar, ref state.remoteClient);
 
                 state.finalString = Encoding.ASCII.GetString(state.buffer, 0, length);
                 Console.WriteLine(state.finalString);
@@ -97,10 +98,10 @@ namespace MultithreadedClient
         {
             Client client = new Client();
             Thread recThread = new Thread(client.Receive);
+            if (recThread.ThreadState == ThreadState.Unstarted)
+                recThread.Start();
             while (true)
             {
-                if (client.clientSocket.Connected && recThread.ThreadState == ThreadState.Unstarted)
-                    recThread.Start();
                 client.Send(Console.ReadLine());
             }
         }

@@ -26,13 +26,13 @@ namespace Multithreaded
 
         void ReadCallback(IAsyncResult ar)
         {
-            readWaitHandle.Set();
             try
             {
 
                 StateObject state = (StateObject)ar.AsyncState;
 
                 int length = serverSocket.EndReceiveFrom(ar, ref state.remoteClient);
+                readWaitHandle.Set();
 
                 state.finalString = Encoding.ASCII.GetString(state.buffer, 0, length);
                 Console.WriteLine(state.finalString);
