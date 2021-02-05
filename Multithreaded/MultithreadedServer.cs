@@ -8,53 +8,36 @@ namespace Multithreaded
 {
     public class StateObject
     {
-        public Socket workSocket = null;
         public const int BufferSize = 1024;
         public byte[] buffer = new byte[BufferSize];
         public string finalString = "";
         public int index = -1;
+        public EndPoint remoteClient;
     }
 
     class Server
     {
-        Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
 
         List<StateObject> states = new List<StateObject>();
-
-        void AcceptCallback(IAsyncResult ar)
-        {
-            Socket listener = (Socket)ar.AsyncState;
-            Socket handler = listener.EndAccept(ar);
-
-            acceptWaitHandle.Set();
-
-            Console.WriteLine("Connection Established with {0}", handler.RemoteEndPoint.ToString());
-
-
-            StateObject state = new StateObject();
-            states.Add(state);
-            state.index = states.Count - 1;
-            state.workSocket = handler;
-
-            handler.Send(Encoding.ASCII.GetBytes("cli" + " " + state.index.ToString()));
-
-            handler.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0, new AsyncCallback(ReadCallback), state);
-        }
+        IPEndPoint client = new IPEndPoint(IPAddress.Any, 0);
+        EventWaitHandle serverWaitHandle = new EventWaitHandle(true, EventResetMode.ManualReset);
+        EventWaitHandle readWaitHandle = new EventWaitHandle(true, EventResetMode.ManualReset);
 
         void ReadCallback(IAsyncResult ar)
         {
+                readWaitHandle.Set();
             try
             {
 
                 StateObject state = (StateObject)ar.AsyncState;
-                Socket handler = state.workSocket;
 
-                int length = handler.EndReceive(ar);
+                int length = serverSocket.EndReceiveFrom(ar,ref state.remoteClient);
 
                 state.finalString = Encoding.ASCII.GetString(state.buffer, 0, length);
                 Console.WriteLine(state.finalString);
 
-                handler.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0, new AsyncCallback(ReadCallback), state);
+                serverSocket.BeginReceiveFrom(state.buffer, 0, StateObject.BufferSize, 0,ref state.remoteClient, new AsyncCallback(ReadCallback), state);
 
                 byte[] buffer = new byte[1024];
                 buffer = Encoding.ASCII.GetBytes(state.finalString);
@@ -63,7 +46,7 @@ namespace Multithreaded
                 {
                     if (i == state.index)
                         continue;
-                    states[i].workSocket.Send(buffer);
+                    serverSocket.SendTo(buffer,states[i].remoteClient);
                 }
 
             }
@@ -73,14 +56,6 @@ namespace Multithreaded
             }
 
         }
-
-        void SendCallback(IAsyncResult ar)
-        {
-            Socket handler = (Socket)ar.AsyncState;
-            handler.EndSend(ar);
-        }
-
-        EventWaitHandle acceptWaitHandle = new EventWaitHandle(true, EventResetMode.ManualReset);
 
 
         public Server()
@@ -94,12 +69,10 @@ namespace Multithreaded
                     hostAddr = addr;
             }
 
-            IPAddress ipAddress = hostAddr;
+            IPAddress ipAddress = IPAddress.Parse("127.0.0.1");
             IPEndPoint endPoint = new IPEndPoint(ipAddress, 5000);
 
             serverSocket.Bind(endPoint);
-            serverSocket.Listen(100);
-
 
         }
 
@@ -107,9 +80,18 @@ namespace Multithreaded
         {
             while (true)
             {
-                acceptWaitHandle.Reset();
-                serverSocket.BeginAccept(new AsyncCallback(AcceptCallback), serverSocket);
-                acceptWaitHandle.WaitOne();
+                serverWaitHandle.Reset();
+
+                var remoteClient = (EndPoint)client;
+                byte[] buffer = new byte[1024];
+
+                StateObject state = new StateObject();
+                states.Add(state);
+                state.index = states.Count - 1;
+                state.remoteClient = remoteClient;
+
+                serverSocket.BeginReceiveFrom(buffer, 0, buffer.Length, SocketFlags.None,ref remoteClient,new AsyncCallback(ReadCallback),state);
+                serverWaitHandle.WaitOne();
             }
         }
     }
