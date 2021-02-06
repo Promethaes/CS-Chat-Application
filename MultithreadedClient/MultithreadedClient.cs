@@ -16,18 +16,18 @@ namespace MultithreadedClient
     class Client
     {
         public Socket clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        EventWaitHandle connectWaitHandle = new EventWaitHandle(true, EventResetMode.ManualReset);
+        public Socket listenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         EventWaitHandle sendDone = new EventWaitHandle(true, EventResetMode.ManualReset);
         EventWaitHandle receiveDone = new EventWaitHandle(true, EventResetMode.ManualReset);
-        IPEndPoint endPoint;
+        public IPEndPoint endPoint;
         public Client()
         {
             IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
             IPAddress ipAddress = IPAddress.Parse("192.168.0.46");
             endPoint = new IPEndPoint(ipAddress, 5000);
 
-
-            connectWaitHandle.WaitOne();
+            clientSocket.Bind(new IPEndPoint(IPAddress.Any, 0));
+           
         }
 
         public void Send(string message)
@@ -56,52 +56,43 @@ namespace MultithreadedClient
 
         public void Receive()
         {
-            try
+            while (true)
             {
-                StateObject state = new StateObject();
-                state.remoteClient = (EndPoint)endPoint;
-                EndPoint temp = new IPEndPoint(IPAddress.Any, 0);
-                clientSocket.Bind(temp);
-                clientSocket.BeginReceiveFrom(state.buffer, 0, StateObject.BufferSize, SocketFlags.None, ref state.remoteClient, new AsyncCallback(RecieveCallback), state);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-            }
-        }
+                receiveDone.Reset();
+                try
+                {
+                    byte[] buffer = new byte[1024];
+                    var ep = (EndPoint)endPoint;
+                    clientSocket.ReceiveFrom(buffer, 0, buffer.Length, SocketFlags.None, ref ep);
 
-        void RecieveCallback(IAsyncResult ar)
-        {
-            try
-            {
-                StateObject state = (StateObject)ar.AsyncState;
-
-                int length = clientSocket.EndReceiveFrom(ar, ref state.remoteClient);
-
-                state.finalString = Encoding.ASCII.GetString(state.buffer, 0, length);
-                Console.WriteLine(state.finalString);
-
-                clientSocket.BeginReceiveFrom(state.buffer, 0, StateObject.BufferSize, SocketFlags.None, ref state.remoteClient, new AsyncCallback(RecieveCallback), state);
+                    var fString = Encoding.ASCII.GetString(buffer);
+                    
+                    Console.WriteLine(fString);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
                 receiveDone.Set();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
             }
         }
     }
-
 
     class MultithreadedClient
     {
         static void Main(string[] args)
         {
+            EventWaitHandle mainWaitHandle = new EventWaitHandle(true, EventResetMode.ManualReset);
             Client client = new Client();
             Thread recThread = new Thread(client.Receive);
-            if (recThread.ThreadState == ThreadState.Unstarted)
-                recThread.Start();
+            recThread.Start();
+
+            //byte[] buffer = Encoding.ASCII.GetBytes("initMsg");
+            //client.clientSocket.SendTo(buffer, client.endPoint);
             while (true)
             {
+                mainWaitHandle.Reset();
+
                 client.Send(Console.ReadLine());
             }
         }
