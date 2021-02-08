@@ -23,13 +23,11 @@ namespace Multithreaded
         Dictionary<string,StateObject> states = new Dictionary<string, StateObject>();
         
         EventWaitHandle serverWaitHandle = new EventWaitHandle(true, EventResetMode.ManualReset);
-        EventWaitHandle readWaitHandle = new EventWaitHandle(true, EventResetMode.ManualReset);
 
         void ReadCallback(IAsyncResult ar)
         {
             try
             {
-
                 StateObject state = (StateObject)ar.AsyncState;
 
                 int length = serverSocket.EndReceiveFrom(ar, ref state.remoteClient);
@@ -41,20 +39,27 @@ namespace Multithreaded
                     var temp = Encoding.ASCII.GetBytes("clin " + (states.Count - 1).ToString() + " ");
                     serverSocket.SendTo(temp, state.remoteClient);
                 }
-
+                
                 state.finalString = Encoding.ASCII.GetString(state.buffer, 0, length);
+                if(state.finalString == "endMsg")
+                {
+                    var temp = Encoding.ASCII.GetBytes("Goodbye");
+                    serverSocket.SendTo(temp, state.remoteClient);
+
+                    states.Remove(state.remoteClient.ToString());
+                    serverWaitHandle.Set();
+                    return;
+                }
+
                 Console.WriteLine(state.finalString);
                
-                //serverSocket.BeginReceiveFrom(state.buffer, 0, StateObject.BufferSize, 0, ref state.remoteClient, new AsyncCallback(ReadCallback), state);
-
                 foreach(var ep in states)
                 {
                     if (ep.Key == state.remoteClient.ToString())
                         continue;
 
-                    serverSocket.SendTo(state.buffer, ep.Value.remoteClient);
+                    serverSocket.SendTo(state.buffer,length,SocketFlags.None, ep.Value.remoteClient);
                 }
-
 
             }
             catch (Exception e)

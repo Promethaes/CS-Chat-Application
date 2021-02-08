@@ -20,6 +20,7 @@ namespace MultithreadedClient
         EventWaitHandle sendDone = new EventWaitHandle(true, EventResetMode.ManualReset);
         EventWaitHandle receiveDone = new EventWaitHandle(true, EventResetMode.ManualReset);
         public IPEndPoint endPoint;
+        public bool leave = false;
         public Client()
         {
             IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
@@ -27,7 +28,7 @@ namespace MultithreadedClient
             endPoint = new IPEndPoint(ipAddress, 5000);
 
             clientSocket.Bind(new IPEndPoint(IPAddress.Any, 0));
-           
+
         }
 
         public void Send(string message)
@@ -58,15 +59,17 @@ namespace MultithreadedClient
         {
             while (true)
             {
+                if (leave)
+                    break;
                 receiveDone.Reset();
                 try
                 {
                     byte[] buffer = new byte[1024];
                     var ep = (EndPoint)endPoint;
-                    clientSocket.ReceiveFrom(buffer, 0, buffer.Length, SocketFlags.None, ref ep);
+                    int length = clientSocket.ReceiveFrom(buffer, 0, buffer.Length, SocketFlags.None, ref ep);
 
-                    var fString = Encoding.ASCII.GetString(buffer);
-                    
+                    var fString = Encoding.ASCII.GetString(buffer, 0, length);
+
                     Console.WriteLine(fString);
                 }
                 catch (Exception e)
@@ -87,14 +90,26 @@ namespace MultithreadedClient
             Thread recThread = new Thread(client.Receive);
             recThread.Start();
 
-            //byte[] buffer = Encoding.ASCII.GetBytes("initMsg");
-            //client.clientSocket.SendTo(buffer, client.endPoint);
+            byte[] buffer = Encoding.ASCII.GetBytes("initMsg");
+            client.clientSocket.SendTo(buffer, client.endPoint);
             while (true)
             {
                 mainWaitHandle.Reset();
 
-                client.Send(Console.ReadLine());
+                var input = Console.ReadLine();
+                if(input == "endMsg")
+                {
+                    client.leave = true;
+                    client.Send(input);
+                    recThread.Join();
+                    break;
+                }
+
+                client.Send(input);
             }
+            buffer = Encoding.ASCII.GetBytes("endMsg");
+            client.clientSocket.SendTo(buffer, client.endPoint);
+            client.clientSocket.Close();
         }
     }
 }
