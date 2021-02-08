@@ -47,6 +47,9 @@ namespace Multithreaded
                     serverSocket.SendTo(temp, state.remoteClient);
 
                     states.Remove(state.remoteClient.ToString());
+
+                    Console.WriteLine(state.remoteClient.ToString() + " Disconnected");
+
                     serverWaitHandle.Set();
                     return;
                 }
