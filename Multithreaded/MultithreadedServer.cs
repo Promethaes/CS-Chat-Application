@@ -14,6 +14,7 @@ namespace Multithreaded
         public byte[] buffer = new byte[BufferSize];
         public string finalString = "";
         public EndPoint remoteClient;
+        public int index = -1;
     }
 
     class Server
@@ -29,19 +30,25 @@ namespace Multithreaded
             if (!states.ContainsKey(state.remoteClient.ToString()))
             {
                 states.Add(state.remoteClient.ToString(), state);
-
-                var temp = Encoding.ASCII.GetBytes("clin " + (states.Count - 1).ToString() + " ");
+                state.index = (states.Count - 1);
+                
+                var temp = Encoding.ASCII.GetBytes("clin " + state.index.ToString() + " ");
                 serverSocket.SendTo(temp, state.remoteClient);
 
-                temp = Encoding.ASCII.GetBytes("spawn " + (states.Count - 1).ToString() + " ");
+                //change this in the future
+                var toOthers = Encoding.ASCII.GetBytes("spawn " + state.index.ToString() + " ");
 
-                foreach (var ep in states)
+                foreach (var endPoint in states)
                 {
-                    if (ep.Key == state.remoteClient.ToString())
+                    if (endPoint.Key == state.remoteClient.ToString())
                         continue;
+                    var toSelf = Encoding.ASCII.GetBytes("spawn " + endPoint.Value.index.ToString() + " ");
 
-                    serverSocket.SendTo(temp,ep.Value.remoteClient);
+                    serverSocket.SendTo(toOthers, endPoint.Value.remoteClient);
+                    serverSocket.SendTo(toSelf, state.remoteClient);
                 }
+
+                
             }
         }
 
@@ -49,6 +56,14 @@ namespace Multithreaded
         {
             var temp = Encoding.ASCII.GetBytes("Goodbye");
             serverSocket.SendTo(temp, state.remoteClient);
+            temp = Encoding.ASCII.GetBytes("remove " + state.index.ToString());
+            foreach(var endPoint in states)
+            {
+                if (endPoint.Key == state.remoteClient.ToString())
+                    continue;
+
+                serverSocket.SendTo(temp, endPoint.Value.remoteClient);
+            }
 
             states.Remove(state.remoteClient.ToString());
 
