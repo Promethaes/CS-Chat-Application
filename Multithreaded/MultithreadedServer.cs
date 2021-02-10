@@ -9,7 +9,7 @@ namespace Multithreaded
 {
     public class StateObject
     {
-        
+
         public const int BufferSize = 1024;
         public byte[] buffer = new byte[BufferSize];
         public string finalString = "";
@@ -20,9 +20,53 @@ namespace Multithreaded
     {
         Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
 
-        Dictionary<string,StateObject> states = new Dictionary<string, StateObject>();
-        
+        Dictionary<string, StateObject> states = new Dictionary<string, StateObject>();
+
         EventWaitHandle serverWaitHandle = new EventWaitHandle(true, EventResetMode.ManualReset);
+
+        void _RegisterClient(ref StateObject state)
+        {
+            if (!states.ContainsKey(state.remoteClient.ToString()))
+            {
+                states.Add(state.remoteClient.ToString(), state);
+
+                var temp = Encoding.ASCII.GetBytes("clin " + (states.Count - 1).ToString() + " ");
+                serverSocket.SendTo(temp, state.remoteClient);
+
+                temp = Encoding.ASCII.GetBytes("spawn " + (states.Count - 1).ToString() + " ");
+
+                foreach (var ep in states)
+                {
+                    if (ep.Key == state.remoteClient.ToString())
+                        continue;
+
+                    serverSocket.SendTo(temp,ep.Value.remoteClient);
+                }
+            }
+        }
+
+        void _Disconnect(ref StateObject state)
+        {
+            var temp = Encoding.ASCII.GetBytes("Goodbye");
+            serverSocket.SendTo(temp, state.remoteClient);
+
+            states.Remove(state.remoteClient.ToString());
+
+            Console.WriteLine(state.remoteClient.ToString() + " Disconnected");
+
+            serverWaitHandle.Set();
+        }
+
+        void _RelayMessage(ref StateObject state,int length)
+        {
+            foreach (var ep in states)
+            {
+                if (ep.Key == state.remoteClient.ToString())
+                    continue;
+
+                serverSocket.SendTo(state.buffer, length, SocketFlags.None, ep.Value.remoteClient);
+            }
+        }
 
         void ReadCallback(IAsyncResult ar)
         {
@@ -32,37 +76,19 @@ namespace Multithreaded
 
                 int length = serverSocket.EndReceiveFrom(ar, ref state.remoteClient);
 
-                if (!states.ContainsKey(state.remoteClient.ToString()))
-                {
-                    states.Add(state.remoteClient.ToString(), state);
+                _RegisterClient(ref state);
 
-                    var temp = Encoding.ASCII.GetBytes("clin " + (states.Count - 1).ToString() + " ");
-                    serverSocket.SendTo(temp, state.remoteClient);
-                }
-                
                 state.finalString = Encoding.ASCII.GetString(state.buffer, 0, length);
-                if(state.finalString == "endMsg")
+
+                if (state.finalString == "endMsg")
                 {
-                    var temp = Encoding.ASCII.GetBytes("Goodbye");
-                    serverSocket.SendTo(temp, state.remoteClient);
-
-                    states.Remove(state.remoteClient.ToString());
-
-                    Console.WriteLine(state.remoteClient.ToString() + " Disconnected");
-
-                    serverWaitHandle.Set();
+                    _Disconnect(ref state);
                     return;
                 }
 
                 Console.WriteLine(state.finalString);
-               
-                foreach(var ep in states)
-                {
-                    if (ep.Key == state.remoteClient.ToString())
-                        continue;
 
-                    serverSocket.SendTo(state.buffer,length,SocketFlags.None, ep.Value.remoteClient);
-                }
+                _RelayMessage(ref state, length);
 
             }
             catch (Exception e)
