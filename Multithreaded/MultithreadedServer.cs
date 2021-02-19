@@ -56,11 +56,21 @@ namespace Multithreaded
         {
             var temp = Encoding.ASCII.GetBytes("Goodbye");
             serverSocket.SendTo(temp, state.remoteClient);
-            temp = Encoding.ASCII.GetBytes("remove " + state.index.ToString());
+
+            StateObject obj = null;
+            foreach(var endPoint in states)
+            {
+                if (endPoint.Key == state.remoteClient.ToString())
+                {
+                    obj = endPoint.Value;
+                    break;
+                }
+            }
             foreach(var endPoint in states)
             {
                 if (endPoint.Key == state.remoteClient.ToString())
                     continue;
+                temp = Encoding.ASCII.GetBytes("remove " + obj.index);
 
                 serverSocket.SendTo(temp, endPoint.Value.remoteClient);
             }
