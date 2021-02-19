@@ -15,6 +15,7 @@ namespace Multithreaded
         public string finalString = "";
         public EndPoint remoteClient;
         public int index = -1;
+        public int sessionId = -1;
     }
 
     class Server
@@ -31,6 +32,8 @@ namespace Multithreaded
             {
                 states.Add(state.remoteClient.ToString(), state);
                 state.index = (states.Count - 1);
+                var parts = state.finalString.Split(' ');
+                state.sessionId = int.Parse(parts[1]);
                 
                 var temp = Encoding.ASCII.GetBytes("clin " + state.index.ToString() + " ");
                 serverSocket.SendTo(temp, state.remoteClient);
@@ -86,7 +89,7 @@ namespace Multithreaded
         {
             foreach (var ep in states)
             {
-                if (ep.Key == state.remoteClient.ToString())
+                if (ep.Key == state.remoteClient.ToString() || ep.Value.sessionId != state.sessionId)
                     continue;
 
                 serverSocket.SendTo(state.buffer, length, SocketFlags.None, ep.Value.remoteClient);
@@ -101,9 +104,9 @@ namespace Multithreaded
 
                 int length = serverSocket.EndReceiveFrom(ar, ref state.remoteClient);
 
-                _RegisterClient(ref state);
-
                 state.finalString = Encoding.ASCII.GetString(state.buffer, 0, length);
+
+                _RegisterClient(ref state);
 
                 if (state.finalString == "endMsg")
                 {
