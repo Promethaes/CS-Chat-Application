@@ -26,33 +26,33 @@ namespace Multithreaded
 
         EventWaitHandle serverWaitHandle = new EventWaitHandle(true, EventResetMode.ManualReset);
 
-        void _RegisterClient(ref StateObject state)
+        bool _RegisterClient(ref StateObject state)
         {
-            if (!states.ContainsKey(state.remoteClient.ToString()))
+            if (states.ContainsKey(state.remoteClient.ToString()))
+                return false;
+
+            states.Add(state.remoteClient.ToString(), state);
+            state.index = (states.Count - 1);
+            var parts = state.finalString.Split(' ');
+            state.sessionId = int.Parse(parts[1]);
+
+            var temp = Encoding.ASCII.GetBytes("clin " + state.index.ToString() + " ");
+            serverSocket.SendTo(temp, state.remoteClient);
+
+            //change this in the future
+            var toOthers = Encoding.ASCII.GetBytes("spawn " + state.index.ToString() + " ");
+
+            foreach (var endPoint in states)
             {
-                states.Add(state.remoteClient.ToString(), state);
-                state.index = (states.Count - 1);
-                var parts = state.finalString.Split(' ');
-                state.sessionId = int.Parse(parts[1]);
-                
-                var temp = Encoding.ASCII.GetBytes("clin " + state.index.ToString() + " ");
-                serverSocket.SendTo(temp, state.remoteClient);
+                if (endPoint.Key == state.remoteClient.ToString())
+                    continue;
+                var toSelf = Encoding.ASCII.GetBytes("spawn " + endPoint.Value.index.ToString() + " ");
 
-                //change this in the future
-                var toOthers = Encoding.ASCII.GetBytes("spawn " + state.index.ToString() + " ");
-
-                foreach (var endPoint in states)
-                {
-                    if (endPoint.Key == state.remoteClient.ToString())
-                        continue;
-                    var toSelf = Encoding.ASCII.GetBytes("spawn " + endPoint.Value.index.ToString() + " ");
-
-                    serverSocket.SendTo(toOthers, endPoint.Value.remoteClient);
-                    serverSocket.SendTo(toSelf, state.remoteClient);
-                }
-
-                
+                serverSocket.SendTo(toOthers, endPoint.Value.remoteClient);
+                serverSocket.SendTo(toSelf, state.remoteClient);
             }
+
+            return true;
         }
 
         void _Disconnect(ref StateObject state)
@@ -61,7 +61,7 @@ namespace Multithreaded
             serverSocket.SendTo(temp, state.remoteClient);
 
             StateObject obj = null;
-            foreach(var endPoint in states)
+            foreach (var endPoint in states)
             {
                 if (endPoint.Key == state.remoteClient.ToString())
                 {
@@ -69,7 +69,7 @@ namespace Multithreaded
                     break;
                 }
             }
-            foreach(var endPoint in states)
+            foreach (var endPoint in states)
             {
                 if (endPoint.Key == state.remoteClient.ToString())
                     continue;
@@ -85,7 +85,7 @@ namespace Multithreaded
             serverWaitHandle.Set();
         }
 
-        void _RelayMessage(ref StateObject state,int length)
+        void _RelayMessage(ref StateObject state, int length)
         {
             foreach (var ep in states)
             {
@@ -106,7 +106,8 @@ namespace Multithreaded
 
                 state.finalString = Encoding.ASCII.GetString(state.buffer, 0, length);
 
-                _RegisterClient(ref state);
+                if (!_RegisterClient(ref state))
+                    state.sessionId = states[state.remoteClient.ToString()].sessionId;
 
                 if (state.finalString == "endMsg")
                 {
@@ -155,7 +156,6 @@ namespace Multithreaded
 
                 IPEndPoint client = new IPEndPoint(IPAddress.Any, 0);
                 var remoteClient = (EndPoint)client;
-                byte[] buffer = new byte[1024];
 
                 StateObject state = new StateObject();
                 state.remoteClient = remoteClient;
