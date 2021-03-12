@@ -18,6 +18,12 @@ namespace Multithreaded
         public int sessionId = -1;
     }
 
+    public class Room
+    {
+        public Dictionary<string, StateObject> currentRoomOccupents = new Dictionary<string, StateObject>();
+        public int sessionID = -1;
+    }
+
     class Server
     {
         Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
@@ -26,29 +32,46 @@ namespace Multithreaded
 
         EventWaitHandle serverWaitHandle = new EventWaitHandle(true, EventResetMode.ManualReset);
 
+        List<Room> rooms = new List<Room>();
+
+
+        public int maxRooms = 5;
+        public int occupiedRooms = -1;
+
         bool _RegisterClient(ref StateObject state)
         {
-            if (states.ContainsKey(state.remoteClient.ToString()))
-                return false;
+            foreach (var room in rooms)
+                if (room.currentRoomOccupents.ContainsKey(state.remoteClient.ToString()))
+                    return false;
 
-            states.Add(state.remoteClient.ToString(), state);
-            state.index = (states.Count - 1);
             var parts = state.finalString.Split(' ');
             state.sessionId = int.Parse(parts[1]);
 
-            var temp = Encoding.ASCII.GetBytes("clin " + state.index.ToString() + " ");
-            serverSocket.SendTo(temp, state.remoteClient);
-
-            //change this in the future
-            var toOthers = Encoding.ASCII.GetBytes("spawn " + state.index.ToString() + " ");
-
-            foreach (var endPoint in states)
+            //create a new room
+            if (state.sessionId == -1 /*&& rooms.Count < maxRooms*/)
             {
-                if (endPoint.Key == state.remoteClient.ToString())
-                    continue;
-                var toSelf = Encoding.ASCII.GetBytes("spawn " + endPoint.Value.index.ToString() + " ");
+                rooms.Add(new Room());
+                state.sessionId = rooms.Count - 1;
+            }
+            else if (state.sessionId > rooms.Count - 1)
+                return false;
 
-                serverSocket.SendTo(toOthers, endPoint.Value.remoteClient);
+            int sID = rooms.Count - 1;
+            rooms[sID].currentRoomOccupents.Add(state.remoteClient.ToString(), state);
+            state.index = rooms[sID].currentRoomOccupents.Count - 1;
+            var tempMsg = Encoding.ASCII.GetBytes("clin " + state.index.ToString() + " " + state.sessionId.ToString());
+            serverSocket.SendTo(tempMsg, state.remoteClient);
+
+            var toOthers = Encoding.ASCII.GetBytes("spawn " + state.index.ToString());
+
+            foreach (var client in rooms[sID].currentRoomOccupents)
+            {
+                if (client.Key == state.remoteClient.ToString())
+                    continue;
+
+                var toSelf = Encoding.ASCII.GetBytes("spawn " + client.Value.index.ToString());
+
+                serverSocket.SendTo(toOthers, client.Value.remoteClient);
                 serverSocket.SendTo(toSelf, state.remoteClient);
             }
 
@@ -61,24 +84,25 @@ namespace Multithreaded
             serverSocket.SendTo(temp, state.remoteClient);
 
             StateObject obj = null;
-            foreach (var endPoint in states)
+            foreach (var room in rooms)
             {
-                if (endPoint.Key == state.remoteClient.ToString())
+                if (room.currentRoomOccupents.ContainsKey(state.remoteClient.ToString()))
                 {
-                    obj = endPoint.Value;
+                    obj = room.currentRoomOccupents[state.remoteClient.ToString()];
                     break;
                 }
             }
-            foreach (var endPoint in states)
+
+            foreach (var client in rooms[obj.sessionId].currentRoomOccupents)
             {
-                if (endPoint.Key == state.remoteClient.ToString())
+                if (client.Key == obj.remoteClient.ToString())
                     continue;
                 temp = Encoding.ASCII.GetBytes("remove " + obj.index);
-
-                serverSocket.SendTo(temp, endPoint.Value.remoteClient);
+                serverSocket.SendTo(temp, client.Value.remoteClient);
             }
 
-            states.Remove(state.remoteClient.ToString());
+            //remove client from room
+            rooms[obj.sessionId].currentRoomOccupents.Remove(obj.remoteClient.ToString());
 
             Console.WriteLine(state.remoteClient.ToString() + " Disconnected");
 
@@ -87,12 +111,11 @@ namespace Multithreaded
 
         void _RelayMessage(ref StateObject state, int length)
         {
-            foreach (var ep in states)
+            foreach (var client in rooms[state.sessionId].currentRoomOccupents)
             {
-                if (ep.Key == state.remoteClient.ToString() || ep.Value.sessionId != state.sessionId)
+                if (client.Key == state.remoteClient.ToString())
                     continue;
-
-                serverSocket.SendTo(state.buffer, length, SocketFlags.None, ep.Value.remoteClient);
+                serverSocket.SendTo(state.buffer, length, SocketFlags.None, client.Value.remoteClient);
             }
         }
 
@@ -107,7 +130,11 @@ namespace Multithreaded
                 state.finalString = Encoding.ASCII.GetString(state.buffer, 0, length);
 
                 if (!_RegisterClient(ref state))
-                    state.sessionId = states[state.remoteClient.ToString()].sessionId;
+                {
+                    foreach (var room in rooms)
+                        if (room.currentRoomOccupents.ContainsKey(state.remoteClient.ToString()))
+                            state.sessionId = room.currentRoomOccupents[state.remoteClient.ToString()].sessionId;
+                }
 
                 if (state.finalString == "endMsg")
                 {
@@ -172,6 +199,7 @@ namespace Multithreaded
                 serverWaitHandle.WaitOne();
             }
         }
+
     }
 
     class MultithreadedServer
