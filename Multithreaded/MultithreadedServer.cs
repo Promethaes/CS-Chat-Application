@@ -16,19 +16,20 @@ namespace Multithreaded
         public EndPoint remoteClient;
         public int index = -1;
         public int sessionId = -1;
+        public string username = "";
+        public bool markedForDelete = false;
     }
 
     public class Room
     {
         public Dictionary<string, StateObject> currentRoomOccupents = new Dictionary<string, StateObject>();
         public int sessionID = -1;
+        public string roomName = "";
     }
 
     class Server
     {
         Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-
-        Dictionary<string, StateObject> states = new Dictionary<string, StateObject>();
 
         EventWaitHandle serverWaitHandle = new EventWaitHandle(true, EventResetMode.ManualReset);
 
@@ -38,6 +39,24 @@ namespace Multithreaded
         public int maxRooms = 5;
         public int occupiedRooms = -1;
 
+        void _SendRoomInfo(ref StateObject state)
+        {
+            foreach (var room in rooms)
+            {
+                //room SID numberOfOccupents
+                string finalMessage = "";
+                finalMessage = "room " + room.sessionID + " " + room.currentRoomOccupents.Count + " " + room.roomName;
+                Console.WriteLine(finalMessage);
+
+                serverSocket.SendTo(Encoding.ASCII.GetBytes(finalMessage), state.remoteClient);
+            }
+
+            if (rooms.Count == 0)
+                serverSocket.SendTo(Encoding.ASCII.GetBytes("no"), state.remoteClient);
+
+            state.markedForDelete = true;
+        }
+
         bool _RegisterClient(ref StateObject state)
         {
             foreach (var room in rooms)
@@ -46,15 +65,16 @@ namespace Multithreaded
 
             var parts = state.finalString.Split(' ');
             state.sessionId = int.Parse(parts[1]);
-
+            state.username = parts[2];
             //create a new room
-            if (state.sessionId == -1 /*&& rooms.Count < maxRooms*/)
+            if (state.sessionId == -1)
             {
                 rooms.Add(new Room());
                 state.sessionId = rooms.Count - 1;
+                rooms[rooms.Count - 1].sessionID = state.sessionId;
+                rooms[rooms.Count - 1].roomName = state.username;
             }
-            else if (state.sessionId > rooms.Count - 1)
-                return false;
+
 
             int sID = rooms.Count - 1;
             rooms[sID].currentRoomOccupents.Add(state.remoteClient.ToString(), state);
@@ -62,14 +82,14 @@ namespace Multithreaded
             var tempMsg = Encoding.ASCII.GetBytes("clin " + state.index.ToString() + " " + state.sessionId.ToString());
             serverSocket.SendTo(tempMsg, state.remoteClient);
 
-            var toOthers = Encoding.ASCII.GetBytes("spawn " + state.index.ToString());
+            var toOthers = Encoding.ASCII.GetBytes("spawn " + state.index.ToString() + " " + state.username);
 
             foreach (var client in rooms[sID].currentRoomOccupents)
             {
                 if (client.Key == state.remoteClient.ToString())
                     continue;
 
-                var toSelf = Encoding.ASCII.GetBytes("spawn " + client.Value.index.ToString());
+                var toSelf = Encoding.ASCII.GetBytes("spawn " + client.Value.index.ToString() + " " + client.Value.username);
 
                 serverSocket.SendTo(toOthers, client.Value.remoteClient);
                 serverSocket.SendTo(toSelf, state.remoteClient);
@@ -129,6 +149,14 @@ namespace Multithreaded
 
                 state.finalString = Encoding.ASCII.GetString(state.buffer, 0, length);
 
+                if (state.finalString == "roominfo")
+                {
+                    Console.WriteLine(state.remoteClient.ToString() + " is requesting room info");
+                    _SendRoomInfo(ref state);
+                    serverWaitHandle.Set();
+                    return;
+                }
+
                 if (!_RegisterClient(ref state))
                 {
                     foreach (var room in rooms)
@@ -161,12 +189,13 @@ namespace Multithreaded
         {
             IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
 
-            var hostAddr = IPAddress.Parse("192.168.0.1");
-            foreach (var addr in ipHostInfo.AddressList)
-            {
-                if (addr.ToString().Contains("192"))
-                    hostAddr = addr;
-            }
+            //var hostAddr = IPAddress.Parse("172.31.81.144");
+            var hostAddr = IPAddress.Parse("192.168.0.46");
+            //foreach (var addr in ipHostInfo.AddressList)
+            //{
+            //    if (addr.ToString().Contains("192"))
+            //        hostAddr = addr;
+            //}
 
             IPAddress ipAddress = hostAddr;
             IPEndPoint endPoint = new IPEndPoint(ipAddress, 5000);
@@ -196,9 +225,21 @@ namespace Multithreaded
                     Console.WriteLine(e);
                 }
 
+                state = null;
+                for (int i = 0; i < rooms.Count; i++)
+                {
+                    if (rooms[i].currentRoomOccupents.Count == 0)
+                    {
+                        rooms.RemoveAt(i);
+                        i--;
+                    }
+                }
+
                 serverWaitHandle.WaitOne();
             }
         }
+
+
 
     }
 
