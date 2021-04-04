@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Collections.Generic;
+using System.IO;
 
 namespace Multithreaded
 {
@@ -27,6 +28,113 @@ namespace Multithreaded
         public string roomName = "";
     }
 
+    public class Leaderboard
+    {
+        //should have the entry name as the key
+        public Dictionary<string, LeaderboardEntry> entries = new Dictionary<string, LeaderboardEntry>();
+
+        //param: true: clears the dictionary of entries upon completion
+        public void WriteToFile(bool clearEntriesUponCompletion)
+        {
+            while (entries.Count > 10)
+            {
+                foreach (var entry in entries)
+                {
+                    entries.Remove(entry.Key);
+                    break;
+                }
+            }
+
+            string fstring = "";
+            foreach (var entry in entries)
+            {
+                fstring += "Entry " + entry.Value.name + " \n";
+                fstring += "EnemiesDef " + entry.Value.numEnemiesDefeated + " \n";
+                fstring += "Time " + entry.Value.timeTaken + " \n";
+            }
+
+            File.WriteAllText("leaderboard.txt", fstring);
+
+
+            if (clearEntriesUponCompletion)
+                entries.Clear();
+        }
+
+        //Reads leaderboard data in from file
+        public Dictionary<string, LeaderboardEntry> ReadFromFile(bool storeIntoClass)
+        {
+
+            if (!File.Exists(@".\leaderboard.txt"))
+            {
+                Console.WriteLine("Tried to open ./leaderboard.txt, but it doesn't exist!");
+                return entries;
+            }
+
+            StreamReader reader = File.OpenText(@".\leaderboard.txt");
+
+            string content = null;
+            Dictionary<string, LeaderboardEntry> localEntries = new Dictionary<string, LeaderboardEntry>();
+            while ((content = reader.ReadLine()) != null)
+            {
+                LeaderboardEntry entry = new LeaderboardEntry();
+                //name
+                {
+                    var parts = content.Split(' ');
+                    entry.name = parts[1];
+                }
+
+                //enemies defeated
+                content = reader.ReadLine();
+                {
+                    var parts = content.Split(' ');
+                    entry.numEnemiesDefeated = int.Parse(parts[1]);
+                }
+
+                //time taken
+                content = reader.ReadLine();
+                {
+                    var parts = content.Split(' ');
+                    entry.timeTaken = parts[1];
+                }
+                localEntries.Add(entry.name, entry);
+            }
+            reader.Close();
+
+            if (!storeIntoClass)
+                return localEntries;
+
+            entries = localEntries;
+            return entries;
+        }
+
+        public override string ToString()
+        {
+            string fstring = null;
+
+            foreach (var entry in entries)
+                fstring += "?" + entry.Value.ToString();
+
+            return fstring;
+        }
+    }
+    public class LeaderboardEntry
+    {
+        public string name;
+        public int numEnemiesDefeated;
+        public string timeTaken;
+
+        public override string ToString()
+        {
+            string fstring = "";
+
+            fstring += name + " ";
+            fstring += numEnemiesDefeated.ToString() + " ";
+            fstring += timeTaken;
+
+            return fstring;
+        }
+    }
+
     class Server
     {
         Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
@@ -34,6 +142,8 @@ namespace Multithreaded
         EventWaitHandle serverWaitHandle = new EventWaitHandle(true, EventResetMode.ManualReset);
 
         List<Room> rooms = new List<Room>();
+
+        Leaderboard leaderboard = new Leaderboard();
 
 
         public int maxRooms = 5;
@@ -56,6 +166,8 @@ namespace Multithreaded
 
             state.markedForDelete = true;
         }
+
+
 
         bool _RegisterClient(ref StateObject state)
         {
@@ -156,18 +268,54 @@ namespace Multithreaded
                     serverWaitHandle.Set();
                     return;
                 }
-
-                if (!_RegisterClient(ref state))
+                else if (state.finalString == "leaderinfo")
                 {
+                    Console.WriteLine(state.remoteClient.ToString() + " is requesting leaderboard info");
+
+                    var buffer = new byte[1024];
+                    buffer = Encoding.ASCII.GetBytes(leaderboard.ToString());
+                    Console.Write(leaderboard.ToString());
+                    serverSocket.SendTo(buffer, state.remoteClient);
+                    serverWaitHandle.Set();
+                    return;
+
+                }
+                else if (state.finalString.Contains("ldr"))
+                {
+                    var parts = state.finalString.Split(' ');
                     foreach (var room in rooms)
-                        if (room.currentRoomOccupents.ContainsKey(state.remoteClient.ToString()))
-                            state.sessionId = room.currentRoomOccupents[state.remoteClient.ToString()].sessionId;
+                    {
+                        foreach (var occupent in room.currentRoomOccupents)
+                        {
+                            if (parts[0] == occupent.Value.username)
+                            {
+                                LeaderboardEntry entry = new LeaderboardEntry();
+                                entry.name = occupent.Value.username;
+                                entry.numEnemiesDefeated = int.Parse(parts[3]);
+                                entry.timeTaken = parts[4];
+                                if (leaderboard.entries.ContainsKey(entry.name))
+                                    leaderboard.entries.Remove(entry.name);
+                                leaderboard.entries[entry.name] = entry;
+                                leaderboard.WriteToFile(clearEntriesUponCompletion: false);
+                                Console.WriteLine("Wrote to file");
+                                serverWaitHandle.Set();
+                                return;
+                            }
+                        }
+                    }
                 }
 
                 if (state.finalString == "endMsg")
                 {
                     _Disconnect(ref state);
                     return;
+                }
+
+                if (!_RegisterClient(ref state))
+                {
+                    foreach (var room in rooms)
+                        if (room.currentRoomOccupents.ContainsKey(state.remoteClient.ToString()))
+                            state.sessionId = room.currentRoomOccupents[state.remoteClient.ToString()].sessionId;
                 }
 
                 Console.WriteLine(state.finalString);
@@ -201,6 +349,7 @@ namespace Multithreaded
             IPEndPoint endPoint = new IPEndPoint(ipAddress, 5000);
 
             serverSocket.Bind(endPoint);
+            leaderboard.ReadFromFile(storeIntoClass: true);
 
         }
 
