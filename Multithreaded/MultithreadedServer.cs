@@ -308,6 +308,7 @@ namespace Multithreaded
                 if (state.finalString == "endMsg")
                 {
                     _Disconnect(ref state);
+                    serverWaitHandle.Set();
                     return;
                 }
 
@@ -372,6 +373,8 @@ namespace Multithreaded
                 catch (Exception e)
                 {
                     Console.WriteLine(e);
+                    serverWaitHandle.Set();
+
                 }
 
                 state = null;
